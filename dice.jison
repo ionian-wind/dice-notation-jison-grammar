@@ -1,4 +1,4 @@
-/* description: Parses end executes mathematical expressions. */
+/* description: Parses end executes mathematical es. */
 
 /* lexical grammar */
 %lex
@@ -19,11 +19,6 @@
 "!p"                                            return 'PENETRATE';
 "!"                                             return 'EXPLODE';
 
-">"                                             return 'HIGHER_EQ';
-"<"                                             return 'LOWER_EQ';
-
-"f"                                             return 'COUNT_FAILURES';
-
 "*"                                             return '*';
 "/"                                             return '/';
 "-"                                             return '-';
@@ -32,8 +27,8 @@
 "("                                             return '(';
 ")"                                             return ')';
 
-"{"                                             return '{';
-"}"                                             return '}';
+"["                                             return '[';
+"]"                                             return ']';
 
 ","                                             return 'COMMA';
 
@@ -55,85 +50,84 @@
 %% /* language grammar */
 
 expressions
-    : e EOF                                       { console.log($1); return $1; }
+    : expression EOF                            { return ($1).exec() }
+    ;
+
+smart_roll
+    : exploding_dice_roll                       { $$ = $1 }
+    | dice_roll                                 { $$ = $1 }
     ;
 
 drop_keep
-    : exploding_dice_roll DL INTEGER            { $$ = $1 + '.drop("lowest", ' + $3 + ')' }
-    | exploding_dice_roll DH INTEGER            { $$ = $1 + '.drop("highest", ' + $3 + ')' }
-    | exploding_dice_roll KL INTEGER            { $$ = $1 + '.keep("lowest", ' + $3 + ')' }
-    | exploding_dice_roll KH INTEGER            { $$ = $1 + '.keep("highest", ' + $3 + ')' }
-    | dice_roll DL INTEGER                      { $$ = $1 + '.drop("lowest", ' + $3 + ')' }
-    | dice_roll DH INTEGER                      { $$ = $1 + '.drop("highest", ' + $3 + ')' }
-    | dice_roll KL INTEGER                      { $$ = $1 + '.keep("lowest", ' + $3 + ')' }
-    | dice_roll KH INTEGER                      { $$ = $1 + '.keep("highest", ' + $3 + ')' }
-    | exploding_dice_roll DL                    { $$ = $1 + '.drop("lowest")' }
-    | exploding_dice_roll DH                    { $$ = $1 + '.drop("highest")' }
-    | exploding_dice_roll KL                    { $$ = $1 + '.keep("lowest")' }
-    | exploding_dice_roll KH                    { $$ = $1 + '.keep("highest")' }
-    | dice_roll DL                              { $$ = $1 + '.drop("lowest")' }
-    | dice_roll DH                              { $$ = $1 + '.drop("highest")' }
-    | dice_roll KL                              { $$ = $1 + '.keep("lowest")' }
-    | dice_roll KH                              { $$ = $1 + '.keep("highest")' }
+    : smart_roll DL INTEGER                     { $$ = $1.drop(yy.Result.LOWEST, $3) }
+    | smart_roll DL                             { $$ = $1.drop(yy.Result.LOWEST) }
+
+    | smart_roll DH INTEGER                     { $$ = $1.drop(yy.Result.HIGHEST, $3) }
+    | smart_roll DH                             { $$ = $1.drop(yy.Result.HIGHEST) }
+
+    | smart_roll KL INTEGER                     { $$ = $1.keep(yy.Result.LOWEST, $3) }
+    | smart_roll KL                             { $$ = $1.keep(yy.Result.LOWEST) }
+
+    | smart_roll KH INTEGER                     { $$ = $1.keep(yy.Result.HIGHEST, $3) }
+    | smart_roll KH                             { $$ = $1.keep(yy.Result.HIGHEST) }
     ;
 
 exploding_dice_roll
-    : dice_roll EXPLODE                         { $$ = $1 + '.explode()' }
-    | dice_roll COMPOUND                        { $$ = $1 + '.compound()' }
-    | dice_roll PENETRATE                       { $$ = $1 + '.penetrate()' }
+    : dice_roll EXPLODE                         { $$ = $1.explode() }
+    | dice_roll COMPOUND                        { $$ = $1.compound() }
+    | dice_roll PENETRATE                       { $$ = $1.penetrate() }
+    ;
+
+dice
+    : DICE group_or_int                         { $$ = new yy.Dice($2) }
+    | DICE FATE                                 { $$ = new yy.Dice(Dice.FATE_DICE) }
+    | DICE '%'                                  { $$ = new yy.Dice(100) }
     ;
 
 dice_roll
-    : group_or_int DICE group_or_int            { $$ = 'yy.dice(' + $3 + ').roll(' + $1 + ')' }
-    | DICE group_or_int                         { $$ = 'yy.dice(' + $2 + ').roll(1)' }
-    | DICE FATE                                 { $$ = 'yy.dice(FATE).roll(1)' }
-    | group_or_int DICE FATE                    { $$ = 'yy.dice(FATE).roll(' + $1 + ')' }
+    : group_or_int dice                         { $$ = $2.roll($1) }
+    | dice                                      { $$ = $1.roll(new yy.Result(1, Result.STATIC)) }
     ;
 
-concated_expr
-    : '{' concated_inner '}'                    { $$ = 'yy.concat(' + $2 + ')' }
+concat_entry
+    : group_or_int                              { $$ = $1 }
+    | drop_keep                                 { $$ = $1 }
+    | smart_roll                                { $$ = $1 }
     ;
 
 concated_inner
-    : group_or_int                              { $$ = $1; }
-    | concated_inner COMMA group_or_int         { $$ = $1 + ',' + $3 }
-    | drop_keep                                 { $$ = $1; }
-    | concated_inner COMMA drop_keep            { $$ = $1 + ',' + $3 }
-    | exploding_dice_roll                       { $$ = $1; }
-    | concated_inner COMMA exploding_dice_roll  { $$ = $1 + ',' + $3 }
-    | dice_roll                                 { $$ = $1; }
-    | concated_inner COMMA dice_roll            { $$ = $1 + ',' + $3 }
+    : concat_entry                              { $$ = [$1] }
+    | concated_inner COMMA concat_entry         { $$ = $1.push($3); $$ = $1 }
+    ;
+
+concated_expr
+    : '[' concated_inner ']'                    { $$ = (new yy.Result($2)).flatten() }
     ;
 
 concated_drop_keep
-    : concated_expr DL INTEGER                  { $$ = $1 + '.drop("lowest", ' + $3 + ')' }
-    | concated_expr DH INTEGER                  { $$ = $1 + '.drop("highest", ' + $3 + ')' }
-    | concated_expr KL INTEGER                  { $$ = $1 + '.keep("lowest", ' + $3 + ')' }
-    | concated_expr KH INTEGER                  { $$ = $1 + '.keep("highest", ' + $3 + ')' }
-    | concated_expr DL                          { $$ = $1 + '.drop("lowest")' }
-    | concated_expr DH                          { $$ = $1 + '.drop("highest")' }
-    | concated_expr KL                          { $$ = $1 + '.keep("lowest")' }
-    | concated_expr KH                          { $$ = $1 + '.keep("highest")' }
+    : concated_expr DL INTEGER                  { $$ = $1.drop(yy.Result.LOWEST, $3) }
+    | concated_expr DL                          { $$ = $1.drop(yy.Result.LOWEST) }
+
+    | concated_expr DH INTEGER                  { $$ = $1.drop(yy.Result.HIGHEST, $3) }
+    | concated_expr DH                          { $$ = $1.drop(yy.Result.HIGHEST) }
+
+    | concated_expr KL INTEGER                  { $$ = $1.keep(yy.Result.LOWEST, $3) }
+    | concated_expr KL                          { $$ = $1.keep(yy.Result.LOWEST) }
+
+    | concated_expr KH INTEGER                  { $$ = $1.keep(yy.Result.HIGHEST, $3) }
+    | concated_expr KH                          { $$ = $1.keep(yy.Result.HIGHEST) }
     ;
 
 group_or_int
-    : INTEGER                                   { $$ = 'yy.number(' + yytext + ')' }
-    | grouped_expr                              { $$ = $1; }
+    : INTEGER                                   { $$ = new yy.Result(yytext, Result.STATIC) }
+    | '(' expression ')'                        { $$ = $2 }
     ;
 
-grouped_expr
-    : '(' e ')'                                 { $$ = 'yy.group(' + $2 + ')' }
-    ;
-
-e
-    : e '+' e                                   { $$ = $1 + '.add(' + $3 + ')' }
-    | e '-' e                                   { $$ = $1 + '.sub(' + $3 + ')' }
-    | e '*' e                                   { $$ = $1 + '.mul(' + $3 + ')' }
-    | e '/' e                                   { $$ = $1 + '.div(' + $3 + ')' }
-    | dice_roll                                 { $$ = $1 }
-    | exploding_dice_roll                       { $$ = $1 }
-    | drop_keep                                 { $$ = $1 }
+expression
+    : expression '+' expression                 { $$ = $1.exec() + $3.exec() }
+    | expression '-' expression                 { $$ = $1.exec() - $3.exec() }
+    | expression '*' expression                 { $$ = $1.exec() * $3.exec() }
+    | expression '/' expression                 { $$ = $1.exec() / $3.exec() }
     | group_or_int                              { $$ = $1 }
-    | concated_expr                             { $$ = $1 }
-    | concated_drop_keep                        { $$ = $1 }
+    | concat_entry                              { $$ = $1 }
     ;
