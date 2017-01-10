@@ -80,13 +80,13 @@ exploding_dice_roll
 
 dice
     : DICE group_or_int                         { $$ = new yy.Dice($2) }
-    | DICE FATE                                 { $$ = new yy.Dice(Dice.FATE_DICE) }
+    | DICE FATE                                 { $$ = new yy.Dice(yy.Dice.FATE_DICE) }
     | DICE '%'                                  { $$ = new yy.Dice(100) }
     ;
 
 dice_roll
     : group_or_int dice                         { $$ = $2.roll($1) }
-    | dice                                      { $$ = $1.roll(new yy.Result(1, Result.STATIC)) }
+    | dice                                      { $$ = $1.roll(new yy.Result(1, yy.Result.STATIC)) }
     ;
 
 concat_entry
@@ -101,7 +101,7 @@ concated_inner
     ;
 
 concated_expr
-    : '[' concated_inner ']'                    { $$ = (new yy.Result($2)).flatten() }
+    : '[' concated_inner ']'                    { $$ = (new yy.Result($2, yy.Result.GROUP)).flatten() }
     ;
 
 concated_drop_keep
@@ -119,7 +119,7 @@ concated_drop_keep
     ;
 
 group_or_int
-    : INTEGER                                   { $$ = new yy.Result(yytext, Result.STATIC) }
+    : INTEGER                                   { $$ = new yy.Result(yytext, yy.Result.STATIC) }
     | '(' expression ')'                        { $$ = $2 }
     ;
 
@@ -128,6 +128,5 @@ expression
     | expression '-' expression                 { $$ = $1.exec() - $3.exec() }
     | expression '*' expression                 { $$ = $1.exec() * $3.exec() }
     | expression '/' expression                 { $$ = $1.exec() / $3.exec() }
-    | group_or_int                              { $$ = $1 }
     | concat_entry                              { $$ = $1 }
     ;
