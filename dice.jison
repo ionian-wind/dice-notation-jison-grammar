@@ -1,5 +1,3 @@
-/* description: Parses end executes mathematical es. */
-
 /* lexical grammar */
 %lex
 
@@ -12,7 +10,6 @@
 "kl"                                            return 'KL';
 "kh"                                            return 'KH';
 
-"F"                                             return 'FATE';
 [dD]                                            return 'DICE';
 
 "!!"                                            return 'COMPOUND';
@@ -50,7 +47,8 @@
 %% /* language grammar */
 
 expressions
-    : expression EOF                            { return ($1).exec() }
+    : concated_expr EOF                         { return ($1).flatten() }
+    | expression EOF                            { return ($1).exec() }
     ;
 
 smart_roll
@@ -80,7 +78,7 @@ exploding_dice_roll
 
 dice
     : DICE group_or_int                         { $$ = new yy.Dice($2) }
-    | DICE FATE                                 { $$ = new yy.Dice(yy.Dice.FATE_DICE) }
+    | DICE 'F'                                  { $$ = new yy.Dice(yy.Dice.FATE_DICE) }
     | DICE '%'                                  { $$ = new yy.Dice(100) }
     ;
 
@@ -101,7 +99,7 @@ concated_inner
     ;
 
 concated_expr
-    : '[' concated_inner ']'                    { $$ = (new yy.Result($2, yy.Result.GROUP)).flatten() }
+    : '[' concated_inner ']'                    { $$ = new yy.Result($2, yy.Result.GROUP) }
     ;
 
 concated_drop_keep
