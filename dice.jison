@@ -1,3 +1,9 @@
+/*
+    https://wiki.roll20.net/Dice_Reference
+    https://rolz.org
+    http://www.kreativekorp.com/dX
+    https://en.wikipedia.org/wiki/Dice_notation
+ */
 /* lexical grammar */
 %lex
 
@@ -6,11 +12,19 @@
 [0-9]+                                          return 'INTEGER';
 \:([a-z0-9_]+)\:                                return 'MACRO';
 
-"raise"                                         return 'CRAISE';
 "dice"                                          return 'CDICE';
+"raise"                                         return 'CRAISE';
+
+"system"                                        return 'CSYSTEM';
+"hero"                                          return 'SYS_HERO';
+"wild"                                          return 'SYS_WILD';
+"wild_nofail"                                   return 'SYS_WILD_NF';
+"stress"                                        return 'SYS_STRESS';
+"anima"                                         return 'SYS_ANIMA';
+
 "round"                                         return 'CROUND';
-"near"                                          return 'ROUNDNEAR';
 "down"                                          return 'ROUNDDOWN';
+"up"                                            return 'ROUNDUP';
 
 "D"                                             return 'DROP';
 "K"                                             return 'KEEP';
@@ -51,6 +65,7 @@
 "="                                             return 'EQ';
 
 ","                                             return 'COMMA';
+";"                                             return 'SEPARATE';
 "%"                                             return '%';
 
 
@@ -66,15 +81,11 @@
 %left REROLL DROP KEEP DROP_L KEEP_L DROP_H KEEP_H
 %left COMPOUND PENETRATE EXPLODE
 %left COUNT
-%left COMMA
+%left COMMA SEPARATE
 
 %start result
 
 %% /* language grammar */
-
-release_macro
-    : MACRO                                     { $$ = 'yy.deserialize(yy.MACRO.get(\'' + $1 + '\'))' }
-    ;
 
 check_content
     : INTEGER                                   { $$ = [$1] }
@@ -109,24 +120,25 @@ dice
     | FATE_DICE                                 { $$ = '(new yy.Dice((new yy.Number(1)).neg(), new yy.Number(1)))' }
     ;
 
-dice_roll
-    : dice                                      { $$ = $1 + '.roll(1)' }
-    | group_or_int dice                         { $$ = $2 + '.roll(' + $1 + ')' }
+simple_roll
+    : group_or_int dice                         { $$ = $2 + '.roll(' + $1 + ')' }
+    | dice                                      { $$ = $1 + '.roll(1)' }
     ;
 
-dice_reroll
-    : dice_roll                                 { $$ = $1 }
-    | dice_roll REROLL check                    { $$ = $1 + '.reroll(' + $3 + ')' }
+explode
+    : simple_roll COMPOUND check                { $$ = $1 + '.compound(' + $2 + ')' }
+    | simple_roll COMPOUND                      { $$ = $1 + '.compound(null)' }
+    | simple_roll PENETRATE check               { $$ = $1 + '.penetrate(' + $2 + ')' }
+    | simple_roll PENETRATE                     { $$ = $1 + '.penetrate(null)' }
+    | simple_roll EXPLODE check                 { $$ = $1 + '.explode(' + $2 + ')' }
+    | simple_roll EXPLODE                       { $$ = $1 + '.explode(null)' }
     ;
 
 roll
-    : dice_reroll COMPOUND check                { $$ = $1 + '.compound(' + $2 + ')' }
-    | dice_reroll COMPOUND                      { $$ = $1 + '.compound(null)' }
-    | dice_reroll PENETRATE check               { $$ = $1 + '.penetrate(' + $2 + ')' }
-    | dice_reroll PENETRATE                     { $$ = $1 + '.penetrate(null)' }
-    | dice_reroll EXPLODE check                 { $$ = $1 + '.explode(' + $2 + ')' }
-    | dice_reroll EXPLODE                       { $$ = $1 + '.explode(null)' }
-    | dice_reroll                               { $$ = $1 }
+    : simple_roll REROLL check                  { $$ = $1 + '.reroll(' + $3 + ')' }
+    | explode REROLL check                      { $$ = $1 + '.reroll(' + $3 + ')' }
+    | simple_roll                               { $$ = $1 }
+    | explode                                   { $$ = $1 }
     ;
 
 drop_keep
@@ -193,8 +205,8 @@ expression
     | expression '-' expression                 { $$ = $1 + '.sub(' + $3 + ')' }
     | expression '*' expression                 { $$ = $1 + '.mul(' + $3 + ')' }
     | expression '/' expression                 { $$ = $1 + '.div(' + $3 + ', yy.CFG.get(\'round\'))' }
+    | MACRO                                     { $$ = 'yy.Result.deserialize(yy.MACRO.get(\'' + $1 + '\')).evaluate()' }
     | concat_entry                              { $$ = $1 }
-/*  | '-' expression %prec UMINUS               { $$ = $2 + '.neg()' } */
     ;
 
 expressions
@@ -203,21 +215,41 @@ expressions
     | expression                                { $$ = $1 }
     ;
 
-macro_define
-    : macro_define COMMA macro_entry            { $$ = $1 + ' && ' + $3 }
-    | macro_entry                               { $$ = $1 }
+cfg_round
+    : CROUND EQ ROUNDUP                         { $$ = 'yy.CFG.set(\'round\', yy.C.ROUND_UP)' }
+    | CROUND EQ ROUNDDOWN                       { $$ = 'yy.CFG.set(\'round\', yy.C.ROUND_DOWN)' }
+    | CROUND                                    { $$ = 'yy.CFG.set(\'round\', yy.C.ROUND)' }
+    ;
+
+cfg_system
+    : CSYSTEM EQ SYS_HERO                       { $$ = 'yy.CFG.set(\'system\', \'' + $2 + '\')' }
+    | CSYSTEM EQ SYS_WILD                       { $$ = 'yy.CFG.set(\'system\', \'' + $2 + '\')' }
+    | CSYSTEM EQ SYS_WILD_NF                    { $$ = 'yy.CFG.set(\'system\', \'' + $2 + '\')' }
+    | CSYSTEM EQ SYS_STRESS                     { $$ = 'yy.CFG.set(\'system\', \'' + $2 + '\')' }
+    | CSYSTEM EQ SYS_ANIMA                      { $$ = 'yy.CFG.set(\'system\', \'' + $2 + '\')' }
+    | CSYSTEM                                   { $$ = 'yy.CFG.set(\'system\', yy.C.SYSTEM_DEFAULT)' }
+    ;
+
+cfg_raise
+    : CRAISE EQ INTEGER                         { $$ = 'yy.CFG.set(\'raise\', ' + $2 + ')' }
+    | CRAISE                                    { $$ = 'yy.CFG.set(\'raise\', yy.C.MAX)' }
+    ;
+
+cfg_dice
+    : CDICE EQ INTEGER                          { $$ = 'yy.CFG.set(\'dice\', ' + $2 + ')' }
+    | CDICE                                     { $$ = 'yy.CFG.set(\'dice\', yy.CFG.get(\'default_dice\'))' }
     ;
 
 macross
-    : '{' macro_define '}'                      { $$ = $2 }
+    : MACRO EQ expressions                      { $$ = 'yy.MACRO.set(\'' + $1 + '\', (new yy.Result()).push(' + $3 + ').serialize())' }
     ;
 
 cfg_entry
-    : CROUND EQ ROUNDNEAR                       { $$ = 'yy.CFG.set(\'round\', \'near\')' }
-    | CROUND EQ ROUNDDOWN                       { $$ = 'yy.CFG.set(\'round\', \'down\')' }
-    | CRAISE EQ INTEGER                         { $$ = 'yy.CFG.set(\'raise\', ' + $2 + ')' }
-    | CDICE EQ INTEGER                          { $$ = 'yy.CFG.set(\'dice\', ' + $2 + ')' }
-    | MACRO EQ expressions                      { $$ = 'yy.MACRO.set(\'' + $1 + '\', ' + $3 + '.serialize())' }
+    : cfg_round                                 { $$ = $1 }
+    | cfg_system                                { $$ = $1 }
+    | cfg_raise                                 { $$ = $1 }
+    | cfg_dice                                  { $$ = $1 }
+    | macross                                   { $$ = $1 }
     ;
 
 cfg_inner
@@ -240,8 +272,13 @@ notation
     | expressions count_success_fail            { $$ = $1 + $2 }
     ;
 
+grouped_notation
+    : notation                                  { $$ = '.push(' + $1 + ')' }
+    | grouped_notation SEPARATE notation        { $$ = $1 + '.push(' + $3 + ')'}
+    ;
+
 result
-    : configuration notation EOF                { return console.log($1, ';', $2) }
-    | notation configuration EOF                { return console.log($2, ';', $1) }
-    | notation EOF                              { return console.log($1) }
+    : configuration grouped_notation EOF        { return console.log($1, ';; (new yy.Result())' + $2 + '.evaluate()') }
+    | grouped_notation configuration EOF        { return console.log($2, ';; (new yy.Result())' + $1 + '.evaluate()') }
+    | grouped_notation EOF                      { return console.log('(new yy.Result())' + $1 + '.evaluate()') }
     ;
