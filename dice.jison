@@ -163,17 +163,20 @@ concated_expr
     ;
 
 concated_drop_keep
-    : concated_expr DL INTEGER                  { $$ = $1 + '.drop(yy.C.LOWEST,' + $3 + ')' }
-    | concated_expr DL                          { $$ = $1 + '.drop(yy.C.LOWEST)' }
-
-    | concated_expr DH INTEGER                  { $$ = $1 + '.drop(yy.C.HIGHEST,' + $3 + ')' }
-    | concated_expr DH                          { $$ = $1 + '.drop(yy.C.HIGHEST)' }
-
-    | concated_expr KL INTEGER                  { $$ = $1 + '.keep(yy.C.LOWEST,' + $3 + ')' }
-    | concated_expr KL                          { $$ = $1 + '.keep(yy.C.LOWEST)' }
-
-    | concated_expr KH INTEGER                  { $$ = $1 + '.keep(yy.C.HIGHEST,' + $3 + ')' }
-    | concated_expr KH                          { $$ = $1 + '.keep(yy.C.HIGHEST)' }
+    : concated_expr DROP INTEGER                { $$ = $1 + '.drop(new yy.Check(yy.C.LOWEST, null, ' + $3 + '))' }
+    | concated_expr DROP check                  { $$ = $1 + '.drop(' + $3 + ')' }
+    | concated_expr DROP                        { $$ = $1 + '.drop(new yy.Check(yy.C.LOWEST, null, null))' }
+    | concated_expr DROP_L                      { $$ = $1 + '.drop(new yy.Check(yy.C.LOWEST, null, null))' }
+    | concated_expr DROP_L INTEGER              { $$ = $1 + '.drop(new yy.Check(yy.C.LOWEST, null, ' + $3 + '))' }
+    | concated_expr DROP_H                      { $$ = $1 + '.drop(new yy.Check(yy.C.HIGHEST, null, null))' }
+    | concated_expr DROP_H INTEGER              { $$ = $1 + '.drop(new yy.Check(yy.C.HIGHEST, null, ' + $3 + '))' }
+    | concated_expr KEEP INTEGER                { $$ = $1 + '.keep(new yy.Check(yy.C.LOWEST, null, ' + $3 + '))' }
+    | concated_expr KEEP check                  { $$ = $1 + '.keep(' + $3 + ')' }
+    | concated_expr KEEP_L                      { $$ = $1 + '.keep(new yy.Check(yy.C.LOWEST, null, null))' }
+    | concated_expr KEEP_L INTEGER              { $$ = $1 + '.keep(new yy.Check(yy.C.LOWEST, null, ' + $3 + '))' }
+    | concated_expr KEEP_H                      { $$ = $1 + '.keep(new yy.Check(yy.C.HIGHEST, null, null))' }
+    | concated_expr KEEP                        { $$ = $1 + '.keep(new yy.Check(yy.C.HIGHEST, null, null))' }
+    | concated_expr KEEP_H INTEGER              { $$ = $1 + '.keep(new yy.Check(yy.C.HIGHEST, null, ' + $3 + '))' }
     ;
 
 group_or_int
